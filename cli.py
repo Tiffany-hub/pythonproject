@@ -1,22 +1,24 @@
-
-# These lines import necessary modules and libraries, including Click for creating command-line interfaces, and SQLAlchemy for database operations.
 import click
 from sqlalchemy import create_engine, ForeignKey, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+import sqlalchemy
+from alembic.config import Config as AlembicConfig  # Import Alembic Config
+from alembic import command as alembic_command  # Import Alembic command module
 
 # Create an SQLite database
 engine = create_engine('sqlite:///book_recommendations.db')
 
-# This line creates a base class Base for declarative class definitions. Declarative base classes are used to define ORM (Object-Relational Mapping) models.
+# Use sqlalchemy.orm.declarative_base() instead of declarative_base()
+Base = sqlalchemy.orm.declarative_base()
 
-Base = declarative_base()
+# Define the Alembic configuration file path
+alembic_ini_path = "alembic.ini"
+
+# Initialize Alembic config
+alembic_cfg = AlembicConfig(alembic_ini_path)
 
 # Define the User, Book, and ReadingHistory models
-
-# These lines define the User model as an SQLAlchemy ORM class. It represents users in the database and 
-# includes fields like 'id' (unique identifier), 'username' (unique username), and establishes a relationship
-# with the ReadingHistory model.
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
@@ -41,7 +43,13 @@ class ReadingHistory(Base):
     user_id = Column(Integer, ForeignKey('users.id'))
     book_id = Column(Integer, ForeignKey('books.id'))
 
-Base.metadata.create_all(engine)
+# Create database tables using Alembic migrations
+def init_db():
+    alembic_command.upgrade(alembic_cfg, "head")
+
+# Initialize the database
+init_db()
+
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -58,16 +66,12 @@ def add_user(username):
     session.commit()
     click.echo(f'User {username} added successfully!')
 
-# This code defines a Click command add_user. It prompts the user to enter a username and adds the user to the 
-# database. The click.echo function is used to display a success message.
-
 @cli.command()
 @click.option('--username', prompt='Enter your username', help='Username of the user')
 def add_reading_history(username):
     user = session.query(User).filter_by(username=username).first()
     if user:
         click.echo(f'User found: {user.username}')
-        # It prompts the user to choose between adding a new book or using an existing one.
         choice = input('Do you want to add a new book (N) or use an existing book (E)? ').strip().lower()
         if choice == 'n':
             book_title = input('Enter the title of the book: ')
@@ -105,7 +109,6 @@ def add_reading_history(username):
     else:
         click.echo('User not found.')
 
-# Add a command to add books
 @cli.command()
 @click.option('--title', prompt='Enter the title of the book', help='Title of the book')
 @click.option('--author', prompt='Enter the author of the book', help='Author of the book')
@@ -115,33 +118,6 @@ def add_book(title, author, genre):
     session.add(book)
     session.commit()
     click.echo(f'Book {title} by {author} added successfully!')
-
-# Modify the view_reading_history command
-@cli.command()
-@click.option('--username', prompt='Enter username', help='Username of the user')
-def view_reading_history(username):
-    user = session.query(User).filter_by(username=username).first()
-    if user:
-        click.echo(f'Reading History for {user.username}:')
-        for history in user.reading_history:
-            book = session.query(Book).filter_by(id=history.book_id).first()
-            click.echo(f'Title: {book.title}, Author: {book.author}, Genre: {book.genre}')
-        
-        # Recommendations based on genre
-        genre_recommendations = session.query(Book).filter_by(genre=book.genre).filter(Book.id != book.id).all()
-        if genre_recommendations:
-            click.echo(f'\nRecommended Books in Genre: {book.genre}')
-            for rec_book in genre_recommendations:
-                click.echo(f'Title: {rec_book.title}, Author: {rec_book.author}, Genre: {rec_book.genre}')
-        
-        # Recommendations based on author
-        author_recommendations = session.query(Book).filter_by(author=book.author).filter(Book.id != book.id).all()
-        if author_recommendations:
-            click.echo(f'\nRecommended Books by Author: {book.author}')
-            for rec_book in author_recommendations:
-                click.echo(f'Title: {rec_book.title}, Author: {rec_book.author}, Genre: {rec_book.genre}')
-    else:
-        click.echo('User not found.')
 
 @cli.command()
 def view_all_books():
@@ -159,13 +135,9 @@ def view_all_users():
     if users:
         click.echo('All Users:')
         for user in users:
-            click.echo(f'Username: {user.username}, Books Read: {user.num_books_read}')
+            click.echo(f'Username: {user.username}, Number of Books Read: {user.num_books_read}')
     else:
         click.echo('No users found.')
 
 if __name__ == '__main__':
     cli()
-
-# These commands define additional Click commands for viewing reading history, viewing all books, and viewing 
-# all users. They provide functionality for interacting with the database and displaying information to the 
-# user.

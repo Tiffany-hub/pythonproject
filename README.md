@@ -22,6 +22,16 @@ This command-line interface (CLI) application allows users to manage their readi
 
 ## Usage
 
+- Open the python shell and run `python cli.py`
+
+- You will se various commands:
+           - Add user
+           - Add Book
+           - View all users
+           - view all books
+           - add reading history
+           - view reading history
+
 - To add a new user, use the `add_user` command. You'll be prompted to enter the username.
 
 - To add reading history, use the `add_reading_history` command. You can choose to add a new book or select from existing ones.
