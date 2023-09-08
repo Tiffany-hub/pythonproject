@@ -3,13 +3,12 @@ from sqlalchemy import create_engine, ForeignKey, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 import sqlalchemy
-from alembic.config import Config as AlembicConfig  # Import Alembic Config
-from alembic import command as alembic_command  # Import Alembic command module
+from alembic.config import Config as AlembicConfig
+from alembic import command as alembic_command
+
 
 # Create an SQLite database
 engine = create_engine('sqlite:///book_recommendations.db')
-
-# Use sqlalchemy.orm.declarative_base() instead of declarative_base()
 Base = sqlalchemy.orm.declarative_base()
 
 # Define the Alembic configuration file path
@@ -41,7 +40,10 @@ class ReadingHistory(Base):
     __tablename__ = 'reading_history'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'))
-    book_id = Column(Integer, ForeignKey('books.id'))
+    book_id = Column(Integer, ForeignKey('books.id'))  # Add this line
+
+    book = relationship('Book')  # Add this line
+
 
 # Create database tables using Alembic migrations
 def init_db():
@@ -84,8 +86,8 @@ def add_reading_history(username):
         elif choice == 'e':
             click.echo('Existing books:')
             existing_books = session.query(Book).all()
-            for i, book in enumerate(existing_books, 1):
-                click.echo(f'{i}. Title: {book.title}, Author: {book.author}, Genre: {book.genre}')
+            for i, existing_book in enumerate(existing_books, 1):
+                click.echo(f'{i}. Title: {existing_book.title}, Author: {existing_book.author}, Genre: {existing_book.genre}')
             book_choice = int(input('Select a book by entering its number: '))
             if 1 <= book_choice <= len(existing_books):
                 book = existing_books[book_choice - 1]
@@ -118,6 +120,43 @@ def add_book(title, author, genre):
     session.add(book)
     session.commit()
     click.echo(f'Book {title} by {author} added successfully!')
+
+@cli.command()
+@click.option('--username', prompt='Enter username', help='Username of the user')
+def view_reading_history(username):
+    user = session.query(User).filter_by(username=username).first()
+    if user:
+        click.echo(f'Reading History for {user.username}:')
+        for history in user.reading_history:
+            click.echo(f'Title: {history.book.title}, Author: {history.book.author}, Genre: {history.book.genre}')
+
+        recommend_books(user)
+
+    else:
+        click.echo('User not found.')
+
+
+def recommend_books(user):
+    authors = set(history.book.author for history in user.reading_history)
+    genres = set(history.book.genre for history in user.reading_history)
+
+    if authors:
+        click.echo(f'Recommended Books by Authors:')
+        for author in authors:
+            books = session.query(Book).filter_by(author=author).all()
+            for book in books:
+                click.echo(f'Title: {book.title}, Author: {book.author}, Genre: {book.genre}')
+    else:
+        click.echo('No authors found in reading history.')
+
+    if genres:
+        click.echo(f'Recommended Books by Genres:')
+        for genre in genres:
+            books = session.query(Book).filter_by(genre=genre).all()
+            for book in books:
+                click.echo(f'Title: {book.title}, Author: {book.author}, Genre: {book.genre}')
+    else:
+        click.echo('No genres found in reading history.')
 
 @cli.command()
 def view_all_books():
